@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-coral: #FF6B6B;
+  --color-gold: #FFD93D;
+  --color-mint: #6BCF7F;
+  --color-teal: #4ECDC4;
+  --color-card: var(--card);
+  --color-card-hover: var(--card-hover);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-dm-sans);
+  --font-mono: var(--font-space-mono);
+}
+
+:root {
+  --background: #0f0f0f;
+  --foreground: #ffffff;
+  --card: rgba(255, 255, 255, 0.05);
+  --card-hover: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.1);
+  --muted: rgba(255, 255, 255, 0.5);
+}
+
+.light {
+  --background: #f5f5f5;
+  --foreground: #1a1a1a;
+  --card: rgba(0, 0, 0, 0.03);
+  --card-hover: rgba(0, 0, 0, 0.06);
+  --border: rgba(0, 0, 0, 0.1);
+  --muted: rgba(0, 0, 0, 0.5);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, 'DM Sans', sans-serif);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Activity Ring animation */
+@keyframes ring-fill {
+  from { stroke-dashoffset: var(--ring-circumference); }
+  to { stroke-dashoffset: var(--ring-offset); }
+}
+
+.ring-animate {
+  animation: ring-fill 1s ease-out forwards;
+}
+
+/* Confetti burst */
+@keyframes confetti-fall {
+  0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+/* Streak flame pulse */
+@keyframes flame-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.flame-pulse {
+  animation: flame-pulse 1.5s ease-in-out infinite;
+}
+
+/* Gradient text helper */
+.gradient-text {
+  background: linear-gradient(135deg, #FF6B6B, #FFD93D, #6BCF7F, #4ECDC4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* Fix native select/option elements in dark mode */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+
+.light select {
+  color-scheme: light;
+}
+
+.light select option {
+  background: #ffffff;
+  color: #1a1a1a;
+}
