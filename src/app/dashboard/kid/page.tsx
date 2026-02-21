@@ -34,81 +34,12 @@ export default function KidDashboard() {
 
   const supabase = createClient();
 
-  useEffect(() => {
-    if (dashboardLoaded) return;
-    const kidSessionStr = localStorage.getItem('kid_session');
-    if (kidSessionStr) {
-      loadDashboard();
-      return;
-    }
-    if (!authLoading) {
-      loadDashboard();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, dashboardLoaded]);
-
-  // Timer tick
-  useEffect(() => {
-    if (timerRunning) {
-      timerRef.current = setInterval(() => {
-        setTimerSeconds((s) => s + 1);
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [timerRunning]);
-
-  async function loadDashboard() {
-    let resolvedChildId: string | null = null;
-    let resolvedName = '';
-    let resolvedEmoji = '🧒';
-
-    const kidSessionStr = localStorage.getItem('kid_session');
-    if (kidSessionStr) {
-      try {
-        const kidSession: KidSession = JSON.parse(kidSessionStr);
-        resolvedChildId = kidSession.child_id;
-        resolvedName = kidSession.child_name;
-        resolvedEmoji = kidSession.avatar_emoji;
-      } catch {
-        localStorage.removeItem('kid_session');
-      }
-    }
-
-    if (!resolvedChildId && profile?.id) {
-      const { data: children } = await supabase
-        .from('children')
-        .select('*')
-        .eq('parent_id', profile.id)
-        .limit(1);
-
-      const child = children?.[0];
-      if (child) {
-        resolvedChildId = child.id;
-        resolvedName = child.name;
-        resolvedEmoji = child.avatar_emoji;
-      }
-    }
-
-    if (!resolvedChildId) {
-      if (!profile) {
-        window.location.href = '/kid-login';
-        return;
-      }
-      setLoading(false);
-      return;
-    }
-
-    setChildId(resolvedChildId);
-    setChildName(resolvedName);
-    setChildEmoji(resolvedEmoji);
-
+  // ─── refreshData: fetch & update rings/progress for a known childId ───────
+  // Separated from loadDashboard so it can be called by timer/manual log
+  // without the stale-closure problem.
+  const refreshData = useCallback(async (resolvedChildId: string) => {
     const today = new Date().toISOString().split('T')[0];
 
-    // Load all data in parallel
     const [streakRes, logsRes, ringsRes, pointsRes] = await Promise.all([
       supabase.from('streaks').select('*').eq('child_id', resolvedChildId).single(),
       supabase.from('activity_logs').select('activity_type, minutes').eq('child_id', resolvedChildId).eq('logged_date', today),
@@ -146,7 +77,6 @@ export default function KidDashboard() {
         };
       });
     } else {
-      // Fallback
       const defaults = [
         { type: 'math', label: 'Math', color: '#FF6B6B', icon: '📐' },
         { type: 'reading', label: 'Reading', color: '#4ECDC4', icon: '📖' },
@@ -203,7 +133,6 @@ export default function KidDashboard() {
         });
         return { date, rings: ringData };
       } else {
-        // Fallback
         const getPercent = (type: string) => {
           const mins = dayLogs.filter((l) => l.activity_type === type).reduce((s, l) => s + l.minutes, 0);
           return Math.min(Math.round((mins / 30) * 100), 100);
@@ -220,7 +149,7 @@ export default function KidDashboard() {
     });
     setWeeklyRings(weekly);
 
-    // Fetch first lesson for each assigned module (for "Start Learning" links)
+    // Fetch first lesson for each assigned module
     const moduleIds = rings
       .filter((r) => r.ring_type === 'curriculum' && r.module_id)
       .map((r) => r.module_id!);
@@ -233,7 +162,6 @@ export default function KidDashboard() {
       if (lessons) {
         const map: Record<number, string> = {};
         for (const lesson of lessons) {
-          // Keep only the first lesson per module (lowest chapter_number)
           if (!map[lesson.module_id]) {
             map[lesson.module_id] = lesson.id;
           }
@@ -241,10 +169,87 @@ export default function KidDashboard() {
         setLessonMap(map);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ─── loadDashboard: resolve childId (once), then call refreshData ──────────
+  async function loadDashboard() {
+    let resolvedChildId: string | null = null;
+    let resolvedName = '';
+    let resolvedEmoji = '🧒';
+
+    const kidSessionStr = localStorage.getItem('kid_session');
+    if (kidSessionStr) {
+      try {
+        const kidSession: KidSession = JSON.parse(kidSessionStr);
+        resolvedChildId = kidSession.child_id;
+        resolvedName = kidSession.child_name;
+        resolvedEmoji = kidSession.avatar_emoji;
+      } catch {
+        localStorage.removeItem('kid_session');
+      }
+    }
+
+    if (!resolvedChildId && profile?.id) {
+      const { data: children } = await supabase
+        .from('children')
+        .select('*')
+        .eq('parent_id', profile.id)
+        .limit(1);
+
+      const child = children?.[0];
+      if (child) {
+        resolvedChildId = child.id;
+        resolvedName = child.name;
+        resolvedEmoji = child.avatar_emoji;
+      }
+    }
+
+    if (!resolvedChildId) {
+      if (!profile) {
+        window.location.href = '/kid-login';
+        return;
+      }
+      setLoading(false);
+      return;
+    }
+
+    setChildId(resolvedChildId);
+    setChildName(resolvedName);
+    setChildEmoji(resolvedEmoji);
+
+    await refreshData(resolvedChildId);
 
     setDashboardLoaded(true);
     setLoading(false);
   }
+
+  useEffect(() => {
+    if (dashboardLoaded) return;
+    const kidSessionStr = localStorage.getItem('kid_session');
+    if (kidSessionStr) {
+      loadDashboard();
+      return;
+    }
+    if (!authLoading) {
+      loadDashboard();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, dashboardLoaded]);
+
+  // Timer tick
+  useEffect(() => {
+    if (timerRunning) {
+      timerRef.current = setInterval(() => {
+        setTimerSeconds((s) => s + 1);
+      }, 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [timerRunning]);
 
   function handleKidLogout() {
     localStorage.removeItem('kid_session');
@@ -273,8 +278,8 @@ export default function KidDashboard() {
             minutes,
           }),
         });
-        // Directly reload dashboard to show updated progress
-        await loadDashboard();
+        // Refresh rings directly — childId is a stable dep so no stale closure
+        await refreshData(childId);
       } catch (err) {
         console.error('Error logging timer:', err);
       }
@@ -282,8 +287,7 @@ export default function KidDashboard() {
 
     setTimerSeconds(0);
     setTimerRingSlot(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId, timerRingSlot, timerSeconds]);
+  }, [childId, timerRingSlot, timerSeconds, refreshData]);
 
   const submitManualLog = useCallback(async (ringSlot: number) => {
     const mins = parseInt(manualMinutes);
@@ -301,13 +305,12 @@ export default function KidDashboard() {
       });
       setManualMinutes('');
       setShowManualLog(false);
-      // Directly reload dashboard to show updated progress
-      await loadDashboard();
+      // Refresh rings directly — childId is a stable dep so no stale closure
+      await refreshData(childId);
     } catch (err) {
       console.error('Error logging manual time:', err);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId, manualMinutes]);
+  }, [childId, manualMinutes, refreshData]);
 
   const formatTimer = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -399,7 +402,6 @@ export default function KidDashboard() {
             {weeklyRings.map((day) => {
               const d = new Date(day.date + 'T00:00:00');
               const isToday = day.date === new Date().toISOString().split('T')[0];
-              // Get the outer and inner ring data
               const outerRing = day.rings[0];
               const innerRing = day.rings.length > 1 ? day.rings[1] : null;
 
@@ -521,17 +523,17 @@ export default function KidDashboard() {
 
                 <div className="flex gap-2">
                   {(() => {
+                    // Priority: static lessonUrl > DB lesson > lessons browse page
                     const staticUrl = ring.module_id ? getLessonUrl(ring.module_id) : null;
                     const dbLessonId = ring.module_id ? lessonMap[ring.module_id] : null;
                     const href = staticUrl || (dbLessonId ? `/lessons/${dbLessonId}` : '/lessons');
-                    const hasContent = !!staticUrl || !!dbLessonId;
                     return (
                       <a
                         href={href}
                         className="flex-1 py-2 rounded-lg text-xs font-semibold text-center text-[#0f0f0f]"
                         style={{ background: ring.color }}
                       >
-                        {hasContent ? 'Start Lesson' : 'Browse Lessons'}
+                        ▶ Start Lesson
                       </a>
                     );
                   })()}

@@ -14,12 +14,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const isKidRoute = pathname.startsWith('/dashboard/kid');
-  const [hasKidSession, setHasKidSession] = useState(false);
 
-  // Check kid session on mount
-  useEffect(() => {
-    setHasKidSession(getKidSession());
-  }, []);
+  // Re-read localStorage on every render so it stays in sync after
+  // kid logout → parent login without a full page reload.
+  const hasKidSession = getKidSession();
 
   // When auth loading finishes: if no user and no kid session, redirect to login.
   // AuthContext guarantees loading becomes false within 5 seconds (hard timeout).
