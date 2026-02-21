@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Use service role to bypass RLS for kid login lookup
+// Service role client bypasses RLS — same pattern as all other API routes
 function getServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,38 +22,47 @@ export async function POST(request: NextRequest) {
 
     const supabase = getServiceClient();
 
-    // Call the kid_login database function
-    const { data, error } = await supabase.rpc('kid_login', {
-      p_family_code: familyCode,
-      p_kid_pin: kidPin,
-    });
+    // Step 1: Find parent by family code (direct query, no RPC needed)
+    const { data: parent, error: parentError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('family_code', familyCode)
+      .eq('role', 'parent')
+      .single();
 
-    if (error) {
-      console.error('Kid login RPC error:', error);
+    if (parentError || !parent) {
       return NextResponse.json(
-        { success: false, error: 'Login failed. Please try again.' },
-        { status: 500 }
+        { success: false, error: 'Invalid family code' },
+        { status: 401 }
       );
     }
 
-    // The function returns a JSON object
-    if (!data || !data.success) {
+    // Step 2: Find child by parent_id + PIN
+    const { data: child, error: childError } = await supabase
+      .from('children')
+      .select('id, name, avatar_emoji')
+      .eq('parent_id', parent.id)
+      .eq('kid_pin', kidPin)
+      .single();
+
+    if (childError || !child) {
       return NextResponse.json(
-        { success: false, error: data?.error || 'Invalid family code or PIN' },
+        { success: false, error: 'Invalid PIN. Ask your parent for help!' },
         { status: 401 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      child_id: data.child_id,
-      child_name: data.child_name,
-      avatar_emoji: data.avatar_emoji,
-      parent_id: data.parent_id,
+      child_id: child.id,
+      child_name: child.name,
+      avatar_emoji: child.avatar_emoji,
+      parent_id: parent.id,
     });
-  } catch {
+  } catch (err) {
+    console.error('Kid auth error:', err);
     return NextResponse.json(
-      { success: false, error: 'Something went wrong' },
+      { success: false, error: 'Something went wrong. Please try again.' },
       { status: 500 }
     );
   }

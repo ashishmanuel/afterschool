@@ -27,13 +27,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
+  // Profile fetch wrapped in try/catch — NEVER blocks loading
   async function fetchProfile(userId: string) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    setProfile(data);
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      setProfile(data);
+    } catch {
+      // Profile fetch failed — don't block auth flow
+      setProfile(null);
+    }
   }
 
   async function refreshProfile() {
@@ -43,30 +49,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    const getSession = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      if (user) {
-        await fetchProfile(user.id);
+    let mounted = true;
+
+    // HARD SAFETY: loading MUST become false within 5 seconds, no matter what.
+    // This is the absolute last resort — if getUser() hangs, if fetchProfile()
+    // hangs, if onAuthStateChange never fires — this catches it all.
+    const hardTimeout = setTimeout(() => {
+      if (mounted) {
+        setLoading(false);
       }
-      setLoading(false);
+    }, 5000);
+
+    const getSession = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!mounted) return;
+        setUser(user);
+        if (user) {
+          await fetchProfile(user.id);
+        }
+      } catch {
+        // Auth check failed — user stays null, profile stays null
+      }
+      if (mounted) {
+        setLoading(false);
+      }
     };
 
     getSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (!mounted) return;
         setUser(session?.user ?? null);
         if (session?.user) {
+          // fetchProfile has its own try/catch — safe to await
           await fetchProfile(session.user.id);
         } else {
           setProfile(null);
         }
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(hardTimeout);
+      subscription.unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -82,10 +114,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Wait for Supabase to fully clear the session/cookies
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Sign out failed — redirect anyway
+    }
 
-    // Use replace() instead of href — removes dashboard from browser history
-    // so back button goes to the page BEFORE dashboard, not back to it
+    // Use replace() — removes dashboard from browser history
     window.location.replace('/login');
   }
 

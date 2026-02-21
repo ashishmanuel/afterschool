@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Sidebar from '@/components/ui/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
-import { createClient } from '@/lib/supabase';
 
 function getKidSession(): boolean {
   if (typeof window === 'undefined') return false;
@@ -16,76 +15,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const isKidRoute = pathname.startsWith('/dashboard/kid');
   const [hasKidSession, setHasKidSession] = useState(false);
-  const [checkedAuth, setCheckedAuth] = useState(false);
 
-  // Check kid session reactively (not just once at render)
+  // Check kid session on mount
   useEffect(() => {
     setHasKidSession(getKidSession());
   }, []);
 
-  // Redirect helper
-  const redirectToLogin = useCallback(() => {
-    window.location.replace('/login');
-  }, []);
-
-  // Main auth check: once loading completes, decide what to do
+  // When auth loading finishes: if no user and no kid session, redirect to login.
+  // AuthContext guarantees loading becomes false within 5 seconds (hard timeout).
   useEffect(() => {
-    if (!loading) {
-      setCheckedAuth(true);
-      if (!user && !getKidSession()) {
-        redirectToLogin();
-      }
+    if (!loading && !user && !getKidSession()) {
+      window.location.replace('/login');
     }
-  }, [loading, user, redirectToLogin]);
+  }, [loading, user]);
 
-  // Safety timeout: if loading stays true for 3 seconds, do a fresh auth check
-  // This catches bfcache restorations where React state is stale
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (loading && !checkedAuth) {
-        // Loading stuck — do a direct Supabase check
-        const supabase = createClient();
-        supabase.auth.getUser().then(({ data: { user: freshUser } }) => {
-          if (!freshUser && !getKidSession()) {
-            redirectToLogin();
-          }
-          // If user exists, AuthContext will eventually catch up
-        }).catch(() => {
-          // Network error or Supabase down — redirect to be safe
-          if (!getKidSession()) {
-            redirectToLogin();
-          }
-        });
-      }
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [loading, checkedAuth, redirectToLogin]);
-
-  // Handle bfcache restoration (browser back/forward button)
-  // When a page is restored from bfcache, React state is frozen from the last visit.
-  // The "pageshow" event with persisted=true tells us this happened.
-  useEffect(() => {
-    function handlePageShow(event: PageTransitionEvent) {
-      if (event.persisted) {
-        // Page restored from bfcache — re-check auth immediately
-        const supabase = createClient();
-        supabase.auth.getUser().then(({ data: { user: freshUser } }) => {
-          if (!freshUser && !getKidSession()) {
-            redirectToLogin();
-          }
-        }).catch(() => {
-          if (!getKidSession()) {
-            redirectToLogin();
-          }
-        });
-      }
-    }
-
-    window.addEventListener('pageshow', handlePageShow);
-    return () => window.removeEventListener('pageshow', handlePageShow);
-  }, [redirectToLogin]);
-
-  // Kid session on a kid route — skip waiting for auth, show simplified layout immediately
+  // Kid session on a kid route — show immediately without waiting for Supabase auth
   if (isKidRoute && hasKidSession) {
     return (
       <div className="min-h-screen p-6 md:p-10 max-w-[1600px] mx-auto">
@@ -94,8 +38,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // Still loading auth (for parent routes)
-  if (loading && !checkedAuth) {
+  // Still loading auth — show loading indicator.
+  // This will ALWAYS resolve because AuthContext has a hard 5s timeout.
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -106,7 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // No user and no kid session — redirecting
+  // No user and no kid session — redirecting (effect above handles the actual redirect)
   if (!user && !hasKidSession) {
     return (
       <div className="min-h-screen flex items-center justify-center">

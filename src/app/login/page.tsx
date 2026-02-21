@@ -18,9 +18,9 @@ export default function LoginPage() {
   // Auth guard: redirect already-authenticated users to dashboard
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace('/dashboard');
+      window.location.replace('/dashboard');
     }
-  }, [authLoading, user, router]);
+  }, [authLoading, user]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -33,7 +33,10 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      router.push('/dashboard');
+      // Full page load so middleware picks up the fresh session cookies.
+      // This avoids the race condition where router.push() navigates
+      // before AuthContext has processed the new session.
+      window.location.href = '/dashboard';
     }
   }
 
