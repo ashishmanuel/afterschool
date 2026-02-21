@@ -38,7 +38,10 @@ export async function updateSession(request: NextRequest) {
   // Kid dashboard is accessible via kid session (localStorage), not Supabase Auth
   const isKidRoute = request.nextUrl.pathname.startsWith('/dashboard/kid');
 
-  if (!user && !isPublicRoute && !isKidRoute) {
+  // Lessons are accessible to both parents (auth) and kids (localStorage)
+  const isLessonRoute = request.nextUrl.pathname.startsWith('/lessons');
+
+  if (!user && !isPublicRoute && !isKidRoute && !isLessonRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
