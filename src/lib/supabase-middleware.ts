@@ -41,7 +41,10 @@ export async function updateSession(request: NextRequest) {
   // Lessons are accessible to both parents (auth) and kids (localStorage)
   const isLessonRoute = request.nextUrl.pathname.startsWith('/lessons');
 
-  if (!user && !isPublicRoute && !isKidRoute && !isLessonRoute) {
+  // API routes handle their own auth — don't redirect them
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api/');
+
+  if (!user && !isPublicRoute && !isKidRoute && !isLessonRoute && !isApiRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);

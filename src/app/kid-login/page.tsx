@@ -77,6 +77,14 @@ export default function KidLoginPage() {
         body: JSON.stringify({ familyCode, kidPin: pin }),
       });
 
+      // If the response is a redirect or not JSON, handle gracefully
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        setError('Login service unavailable. Please try again.');
+        setLoading(false);
+        return;
+      }
+
       const data = await res.json();
 
       if (!data.success) {
