@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 
 const parentNav = [
   { label: 'Dashboard', icon: '📊', href: '/dashboard' },
-  { label: 'Children', icon: '👧', href: '/dashboard/children' },
+  { label: 'Children', icon: '👧', href: '/dashboard' },
   { label: 'Lessons', icon: '📚', href: '/lessons' },
   { label: 'Settings', icon: '⚙️', href: '/dashboard/settings' },
 ];
