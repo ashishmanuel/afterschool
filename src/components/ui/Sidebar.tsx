@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { KidSession } from '@/types/database';
 
 const parentNav = [
   { label: 'Dashboard', icon: '📊', href: '/dashboard' },
@@ -23,13 +24,46 @@ export default function Sidebar() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const { profile, signOut } = useAuth();
   const pathname = usePathname();
+  const [kidSession, setKidSession] = useState<KidSession | null>(null);
 
-  const nav = profile?.role === 'kid' ? kidNav : parentNav;
+  // Check for kid session in localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('kid_session');
+      if (stored) {
+        try {
+          setKidSession(JSON.parse(stored));
+        } catch {
+          // Invalid session
+        }
+      }
+    }
+  }, []);
+
+  // Determine if this is a kid: either Supabase profile says 'kid' or we have a localStorage kid session
+  const isKid = profile?.role === 'kid' || !!kidSession;
+  const nav = isKid ? kidNav : parentNav;
+
+  // Display name and emoji — prefer Supabase profile, fall back to kid session
+  const displayName = profile?.full_name || kidSession?.child_name || 'Loading...';
+  const displayEmoji = profile?.avatar_emoji || kidSession?.avatar_emoji || '👤';
+  const displayRole = profile?.role || (kidSession ? 'kid' : 'parent');
 
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     document.documentElement.classList.toggle('light', next === 'light');
+  }
+
+  function handleSignOut() {
+    if (kidSession) {
+      // Kid logout — clear localStorage and redirect to kid login
+      localStorage.removeItem('kid_session');
+      window.location.replace('/kid-login');
+    } else {
+      // Parent logout — use AuthContext signOut
+      signOut();
+    }
   }
 
   return (
@@ -74,7 +108,7 @@ export default function Sidebar() {
             </span>
             {nav.map((item) => (
               <Link
-                key={item.href}
+                key={item.href + item.label}
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                   pathname === item.href
@@ -96,19 +130,19 @@ export default function Sidebar() {
               className="w-10 h-10 rounded-full flex items-center justify-center text-xl"
               style={{ background: 'linear-gradient(135deg, #FF6B6B, #4ECDC4)' }}
             >
-              {profile?.avatar_emoji || '👤'}
+              {displayEmoji}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">
-                {profile?.full_name || 'Loading...'}
+                {displayName}
               </p>
               <p className="text-xs text-[var(--muted)] capitalize">
-                {profile?.role || 'parent'}
+                {displayRole}
               </p>
             </div>
           </div>
           <button
-            onClick={signOut}
+            onClick={handleSignOut}
             className="mt-3 w-full text-center text-xs text-[var(--muted)] hover:text-[#FF6B6B] transition-colors"
           >
             Sign Out

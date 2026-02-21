@@ -29,6 +29,7 @@ export default function KidDashboard() {
   const [showManualLog, setShowManualLog] = useState(false);
   const [manualMinutes, setManualMinutes] = useState('');
   const [timerRingSlot, setTimerRingSlot] = useState<number | null>(null);
+  const [lessonMap, setLessonMap] = useState<Record<number, string>>({});
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const supabase = createClient();
@@ -218,6 +219,28 @@ export default function KidDashboard() {
       }
     });
     setWeeklyRings(weekly);
+
+    // Fetch first lesson for each assigned module (for "Start Learning" links)
+    const moduleIds = rings
+      .filter((r) => r.ring_type === 'curriculum' && r.module_id)
+      .map((r) => r.module_id!);
+    if (moduleIds.length > 0) {
+      const { data: lessons } = await supabase
+        .from('lessons')
+        .select('id, module_id')
+        .in('module_id', moduleIds)
+        .order('chapter_number');
+      if (lessons) {
+        const map: Record<number, string> = {};
+        for (const lesson of lessons) {
+          // Keep only the first lesson per module (lowest chapter_number)
+          if (!map[lesson.module_id]) {
+            map[lesson.module_id] = lesson.id;
+          }
+        }
+        setLessonMap(map);
+      }
+    }
 
     setDashboardLoaded(true);
     setLoading(false);
@@ -495,11 +518,17 @@ export default function KidDashboard() {
 
                 <div className="flex gap-2">
                   <Link
-                    href="/lessons"
+                    href={
+                      ring.module_id && lessonMap[ring.module_id]
+                        ? `/lessons/${lessonMap[ring.module_id]}`
+                        : '/lessons'
+                    }
                     className="flex-1 py-2 rounded-lg text-xs font-semibold text-center text-[#0f0f0f]"
                     style={{ background: ring.color }}
                   >
-                    Start Learning
+                    {ring.module_id && lessonMap[ring.module_id]
+                      ? 'Start Learning'
+                      : 'Browse Lessons'}
                   </Link>
                   <Link
                     href={`/dashboard/kid/quiz/${module?.id || ring.module_id}`}
