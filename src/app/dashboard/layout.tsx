@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Sidebar from '@/components/ui/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,13 +15,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const isKidRoute = pathname.startsWith('/dashboard/kid');
   const hasKidSession = getKidSession();
+  const [timedOut, setTimedOut] = useState(false);
+
+  // Safety timeout: if loading stays true for 3 seconds, force redirect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) {
+        setTimedOut(true);
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
-    // Once auth finishes loading, redirect if no user and no kid session
-    if (!loading && !user && !hasKidSession) {
-      window.location.href = '/login';
+    // Redirect if auth finished and no user, OR if loading timed out
+    if ((!loading && !user && !hasKidSession) || (timedOut && !user && !hasKidSession)) {
+      window.location.replace('/login');
     }
-  }, [loading, user, hasKidSession]);
+  }, [loading, user, hasKidSession, timedOut]);
 
   // Kid session on a kid route — skip waiting for auth, show simplified layout immediately
   if (isKidRoute && hasKidSession) {

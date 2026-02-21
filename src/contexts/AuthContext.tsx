@@ -71,11 +71,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function signOut() {
-    await supabase.auth.signOut();
+    // Set loading to prevent dashboard flash on back-nav
+    setLoading(true);
     setUser(null);
     setProfile(null);
-    // Force a full page redirect to clear all client state
-    window.location.href = '/login';
+
+    // Clear kid session from localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('kid_session');
+    }
+
+    // Wait for Supabase to fully clear the session/cookies
+    await supabase.auth.signOut();
+
+    // Use replace() instead of href — removes dashboard from browser history
+    // so back button goes to the page BEFORE dashboard, not back to it
+    window.location.replace('/login');
   }
 
   return (

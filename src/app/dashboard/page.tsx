@@ -7,7 +7,7 @@ import ActivityRing from '@/components/ui/ActivityRing';
 import Link from 'next/link';
 import type { Child, Streak, DailyProgress, RingAssignment } from '@/types/database';
 import { getRingLabel, getRingIcon } from '@/types/database';
-import { getModulesForGrade } from '@/data/curriculum';
+import { CURRICULUM_CATALOG, getModulesForGrade, matchesGrade } from '@/data/curriculum';
 
 interface ChildData extends Child {
   streak: Streak | null;
@@ -689,6 +689,110 @@ export default function ParentDashboard() {
               >
                 {configSaving ? 'Saving...' : 'Save Rings'}
               </button>
+            </div>
+
+            {/* ============================================ */}
+            {/* CURRICULUM ROADMAP */}
+            {/* ============================================ */}
+            <div className="mt-8 pt-6 border-t border-[var(--border)]">
+              <div className="mb-4">
+                <h3 className="font-mono text-lg font-bold">Full Curriculum Roadmap</h3>
+                <p className="text-xs text-[var(--muted)]">
+                  {CURRICULUM_CATALOG.length} modules across Math & Reading &middot; K through Grade 6
+                </p>
+              </div>
+
+              {/* Math Modules */}
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-lg">📐</span>
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-[#FF6B6B]">
+                    Math ({CURRICULUM_CATALOG.filter((m) => m.subject === 'math').length} modules)
+                  </h4>
+                </div>
+                <div className="space-y-2">
+                  {CURRICULUM_CATALOG.filter((m) => m.subject === 'math').map((mod) => {
+                    const isRecommended = matchesGrade(mod.grades, configChild.grade);
+                    const isAssigned = configRings.some((r) => r.module_id === mod.id);
+                    return (
+                      <div
+                        key={mod.id}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
+                          isAssigned
+                            ? 'border-[#4ECDC4]/50 bg-[#4ECDC4]/5'
+                            : isRecommended
+                              ? 'border-[#FFD93D]/30 bg-[#FFD93D]/5'
+                              : 'border-[var(--border)] bg-[var(--card)]'
+                        }`}
+                      >
+                        <span className="text-xl">{mod.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{mod.title}</p>
+                          <p className="text-xs text-[var(--muted)]">{mod.grades} &middot; {mod.duration} &middot; {mod.activities} activities</p>
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          {isAssigned && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#4ECDC4]/20 text-[#4ECDC4]">
+                              Assigned
+                            </span>
+                          )}
+                          {isRecommended && !isAssigned && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFD93D]/20 text-[#FFD93D]">
+                              Recommended
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Reading Modules */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-lg">📖</span>
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-[#4ECDC4]">
+                    Reading ({CURRICULUM_CATALOG.filter((m) => m.subject === 'reading').length} modules)
+                  </h4>
+                </div>
+                <div className="space-y-2">
+                  {CURRICULUM_CATALOG.filter((m) => m.subject === 'reading').map((mod) => {
+                    const isRecommended = matchesGrade(mod.grades, configChild.grade);
+                    const isAssigned = configRings.some((r) => r.module_id === mod.id);
+                    return (
+                      <div
+                        key={mod.id}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
+                          isAssigned
+                            ? 'border-[#4ECDC4]/50 bg-[#4ECDC4]/5'
+                            : isRecommended
+                              ? 'border-[#FFD93D]/30 bg-[#FFD93D]/5'
+                              : 'border-[var(--border)] bg-[var(--card)]'
+                        }`}
+                      >
+                        <span className="text-xl">{mod.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{mod.title}</p>
+                          <p className="text-xs text-[var(--muted)]">{mod.grades} &middot; {mod.duration} &middot; {mod.activities} activities</p>
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          {isAssigned && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#4ECDC4]/20 text-[#4ECDC4]">
+                              Assigned
+                            </span>
+                          )}
+                          {isRecommended && !isAssigned && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFD93D]/20 text-[#FFD93D]">
+                              Recommended
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -236,7 +236,7 @@ function gradeToNumber(grade: string): number {
 }
 
 // Check if a module's grade range matches a child's grade
-function matchesGrade(moduleGrades: string, childGrade: string): boolean {
+export function matchesGrade(moduleGrades: string, childGrade: string): boolean {
   const childNum = gradeToNumber(childGrade);
 
   // Handle ranges like "Grade 1-2", "Grade 3-4"
