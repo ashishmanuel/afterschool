@@ -7,7 +7,7 @@ import { NestedActivityRings, MiniRing } from '@/components/ui/ActivityRing';
 import Link from 'next/link';
 import type { DailyProgress, Streak, WeeklyRing, RingAssignment, KidSession } from '@/types/database';
 import { getRingLabel, getRingIcon } from '@/types/database';
-import { getModuleById } from '@/data/curriculum';
+import { getModuleById, getLessonUrl } from '@/data/curriculum';
 import type { CurriculumModule } from '@/data/curriculum';
 
 export default function KidDashboard() {
@@ -273,8 +273,8 @@ export default function KidDashboard() {
             minutes,
           }),
         });
-        // Reload dashboard to show updated progress
-        setDashboardLoaded(false);
+        // Directly reload dashboard to show updated progress
+        await loadDashboard();
       } catch (err) {
         console.error('Error logging timer:', err);
       }
@@ -282,6 +282,7 @@ export default function KidDashboard() {
 
     setTimerSeconds(0);
     setTimerRingSlot(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, timerRingSlot, timerSeconds]);
 
   const submitManualLog = useCallback(async (ringSlot: number) => {
@@ -300,10 +301,12 @@ export default function KidDashboard() {
       });
       setManualMinutes('');
       setShowManualLog(false);
-      setDashboardLoaded(false);
+      // Directly reload dashboard to show updated progress
+      await loadDashboard();
     } catch (err) {
       console.error('Error logging manual time:', err);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, manualMinutes]);
 
   const formatTimer = (secs: number) => {
@@ -517,19 +520,21 @@ export default function KidDashboard() {
                 )}
 
                 <div className="flex gap-2">
-                  <Link
-                    href={
-                      ring.module_id && lessonMap[ring.module_id]
-                        ? `/lessons/${lessonMap[ring.module_id]}`
-                        : '/lessons'
-                    }
-                    className="flex-1 py-2 rounded-lg text-xs font-semibold text-center text-[#0f0f0f]"
-                    style={{ background: ring.color }}
-                  >
-                    {ring.module_id && lessonMap[ring.module_id]
-                      ? 'Start Learning'
-                      : 'Browse Lessons'}
-                  </Link>
+                  {(() => {
+                    const staticUrl = ring.module_id ? getLessonUrl(ring.module_id) : null;
+                    const dbLessonId = ring.module_id ? lessonMap[ring.module_id] : null;
+                    const href = staticUrl || (dbLessonId ? `/lessons/${dbLessonId}` : '/lessons');
+                    const hasContent = !!staticUrl || !!dbLessonId;
+                    return (
+                      <a
+                        href={href}
+                        className="flex-1 py-2 rounded-lg text-xs font-semibold text-center text-[#0f0f0f]"
+                        style={{ background: ring.color }}
+                      >
+                        {hasContent ? 'Start Lesson' : 'Browse Lessons'}
+                      </a>
+                    );
+                  })()}
                   <Link
                     href={`/dashboard/kid/quiz/${module?.id || ring.module_id}`}
                     className="px-3 py-2 rounded-lg text-xs font-semibold bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
