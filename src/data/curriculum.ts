@@ -10,6 +10,8 @@ export interface CurriculumModule {
   duration: string;
   activities: number;
   chapters: string[];
+  /** URL to a static HTML lesson (served from /public/lessons/) */
+  lessonUrl?: string;
 }
 
 export const CURRICULUM_CATALOG: CurriculumModule[] = [
@@ -101,6 +103,7 @@ export const CURRICULUM_CATALOG: CurriculumModule[] = [
     icon: '📐',
     duration: '8 weeks',
     activities: 30,
+    lessonUrl: '/lessons/decimal-place-value.html',
     chapters: [
       'Understanding Decimal Place Value',
       'Comparing and Ordering Decimals',
@@ -181,6 +184,7 @@ export const CURRICULUM_CATALOG: CurriculumModule[] = [
     icon: '🕵️',
     duration: '10 weeks',
     activities: 35,
+    lessonUrl: '/lessons/reading-detectives.html',
     chapters: [
       'Text Evidence',
       'Making Inferences',
@@ -197,6 +201,7 @@ export const CURRICULUM_CATALOG: CurriculumModule[] = [
     icon: '📝',
     duration: '8 weeks',
     activities: 30,
+    lessonUrl: '/lessons/vocabulary',
     chapters: [
       'Context Clues',
       'Word Parts',
@@ -219,6 +224,23 @@ export const CURRICULUM_CATALOG: CurriculumModule[] = [
       'Theme',
       'Point of View',
       'Character Trait Detectives',
+    ],
+  },
+  {
+    id: 22,
+    title: 'SAT Reading Prep',
+    subject: 'reading' as const,
+    grades: 'Grade 6-8',
+    icon: '🎓',
+    duration: '12 weeks',
+    activities: 40,
+    lessonUrl: '/lessons/sat-reading-prep.html',
+    chapters: [
+      'Critical Analysis',
+      'Evidence-Based Reading',
+      'Vocabulary in Context',
+      'Passage Comparison',
+      'Argument Evaluation',
     ],
   },
 ];
@@ -272,6 +294,18 @@ export function getNextModule(currentModuleId: number, subject: string): Curricu
   const subjectModules = CURRICULUM_CATALOG.filter((m) => m.subject === subject);
   const idx = subjectModules.findIndex((m) => m.id === currentModuleId);
   return idx >= 0 && idx < subjectModules.length - 1 ? subjectModules[idx + 1] : null;
+}
+
+// Check if a module has a playable lesson
+export function hasLesson(moduleId: number): boolean {
+  const mod = getModuleById(moduleId);
+  return !!mod?.lessonUrl;
+}
+
+// Get the lesson URL for a module (static HTML or null)
+export function getLessonUrl(moduleId: number): string | null {
+  const mod = getModuleById(moduleId);
+  return mod?.lessonUrl || null;
 }
 
 // Auto-assign: pick the first grade-appropriate module for a subject
