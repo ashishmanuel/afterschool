@@ -12,6 +12,14 @@ export default function LessonViewer() {
   const router = useRouter();
   const { profile } = useAuth();
   const supabase = createClient();
+
+  // Parent preview mode: parent is logged in (has profile) but no kid session.
+  // In this mode we show all content but skip all DB writes on completion.
+  const isParentPreview =
+    typeof window !== 'undefined'
+      ? !!profile && !localStorage.getItem('kid_session')
+      : false;
+
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentSection, setCurrentSection] = useState(0);
@@ -98,6 +106,9 @@ export default function LessonViewer() {
     celebrate();
     if (timerRef.current) clearInterval(timerRef.current);
 
+    // Parent preview mode — show completion screen but don't write any data
+    if (isParentPreview) return;
+
     // Save progress if authenticated — non-blocking, errors don't affect UX
     if (profile) {
       try {
@@ -171,10 +182,15 @@ export default function LessonViewer() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center max-w-md">
-          <div className="text-7xl mb-6">🎉</div>
-          <h1 className="font-mono text-3xl font-bold gradient-text mb-4">
-            Lesson Complete!
+          <div className="text-7xl mb-6">{isParentPreview ? '👀' : '🎉'}</div>
+          <h1 className="font-mono text-3xl font-bold gradient-text mb-2">
+            {isParentPreview ? 'Preview Complete!' : 'Lesson Complete!'}
           </h1>
+          {isParentPreview && (
+            <p className="text-sm text-[var(--muted)] mb-4">
+              No progress was saved — this was a parent preview.
+            </p>
+          )}
           <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 mb-6">
             <div className="grid grid-cols-3 gap-4">
               <div>
@@ -189,18 +205,18 @@ export default function LessonViewer() {
               </div>
               <div>
                 <p className="font-mono text-2xl font-bold text-[#FFD93D]">
-                  +{correctCount * 10 + 5}
+                  +{isParentPreview ? '—' : correctCount * 10 + 5}
                 </p>
-                <p className="text-xs text-[var(--muted)]">Points</p>
+                <p className="text-xs text-[var(--muted)]">{isParentPreview ? 'Preview' : 'Points'}</p>
               </div>
             </div>
           </div>
           <button
-            onClick={() => router.push('/dashboard/kid')}
+            onClick={() => router.push(isParentPreview ? '/lessons' : '/dashboard/kid')}
             className="px-8 py-3 rounded-lg font-semibold text-[#0f0f0f]"
             style={{ background: 'linear-gradient(135deg, #FF6B6B, #FFD93D)' }}
           >
-            Back to Dashboard
+            {isParentPreview ? 'Back to Lessons' : 'Back to Dashboard'}
           </button>
         </div>
       </div>
@@ -251,8 +267,16 @@ export default function LessonViewer() {
         </div>
       </div>
 
+      {/* Parent preview banner */}
+      {isParentPreview && (
+        <div className="fixed top-[57px] left-0 right-0 z-40 bg-[#FFD93D]/10 border-b border-[#FFD93D]/30 px-6 py-2 flex items-center justify-center gap-2">
+          <span className="text-sm font-semibold text-[#FFD93D]">👀 Parent Preview</span>
+          <span className="text-xs text-[var(--muted)]">— No progress will be recorded for your kids</span>
+        </div>
+      )}
+
       {/* Content */}
-      <div className="pt-24 pb-16 px-6 max-w-3xl mx-auto">
+      <div className={`pb-16 px-6 max-w-3xl mx-auto ${isParentPreview ? 'pt-32' : 'pt-24'}`}>
         {/* Section 0: Hook */}
         {currentSection === 0 && (
           <div className="space-y-8">
@@ -495,7 +519,7 @@ export default function LessonViewer() {
                 className="px-10 py-4 rounded-xl font-bold text-[#0f0f0f] text-xl hover:-translate-y-1 hover:shadow-xl transition-all"
                 style={{ background: 'linear-gradient(135deg, #FF6B6B, #FFD93D)' }}
               >
-                🎉 Complete Lesson!
+                {isParentPreview ? '👀 Finish Preview' : '🎉 Complete Lesson!'}
               </button>
             </div>
           </div>

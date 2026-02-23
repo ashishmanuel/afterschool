@@ -539,10 +539,13 @@ export default function ParentDashboard() {
             <div className="space-y-6">
               {configRings.map((ring) => {
                 const isFlexibleSlot = ring.slot === 3;
-                const gradeModules = getModulesForGrade(
-                  configChild.grade,
-                  ring.ring_type === 'curriculum' ? ring.subject : undefined
-                );
+                // Show ALL modules for the chosen subject (no grade filter) so parents
+                // can assign any available lesson, including ones like Vocabulary Builders.
+                // Grade-appropriate modules are shown first, then the rest.
+                const subjectModules = ring.ring_type === 'curriculum'
+                  ? CURRICULUM_CATALOG.filter((m) => m.subject === ring.subject)
+                  : [];
+                const gradeModules = subjectModules; // alias kept for template compatibility
 
                 return (
                   <div key={ring.slot} className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
@@ -603,11 +606,14 @@ export default function ParentDashboard() {
                             className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] text-sm focus:outline-none focus:border-[#4ECDC4]"
                           >
                             <option value="">Select a module...</option>
-                            {gradeModules.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.icon} {m.title} ({m.grades})
-                              </option>
-                            ))}
+                            {gradeModules.map((m) => {
+                              const isGradeMatch = matchesGrade(m.grades, configChild.grade);
+                              return (
+                                <option key={m.id} value={m.id}>
+                                  {m.icon} {m.title} ({m.grades}){!isGradeMatch ? ' ↑ advanced' : ''}{m.lessonUrl ? ' ✓' : ''}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
 
