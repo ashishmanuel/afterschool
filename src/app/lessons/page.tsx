@@ -20,13 +20,19 @@ export default function LessonsPage() {
   }, []);
 
   async function loadLessons() {
-    const { data } = await supabase
-      .from('lessons')
-      .select('*')
-      .order('order_index');
+    try {
+      const { data } = await supabase
+        .from('lessons')
+        .select('*')
+        .order('order_index');
 
-    setLessons(data || []);
-    setLoading(false);
+      setLessons(data || []);
+    } catch {
+      // DB query failed — fall back to curriculum catalog only
+      setLessons([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const filteredLessons = filter === 'all' ? lessons : lessons.filter((l) => l.subject === filter);
@@ -34,12 +40,27 @@ export default function LessonsPage() {
   // Get module IDs that have actual DB lessons
   const moduleIdsWithLessons = new Set(lessons.map((l) => l.module_id));
 
+  // Check if a module is "available" — either has a static HTML lesson URL or a DB lesson
+  const isModuleAvailable = (modId: number, lessonUrl?: string) =>
+    !!lessonUrl || moduleIdsWithLessons.has(modId);
+
+  // Get the playable URL for a module
+  const getModuleHref = (modId: number, lessonUrl?: string): string => {
+    if (lessonUrl) return lessonUrl;
+    const dbLesson = lessons.find((l) => l.module_id === modId);
+    if (dbLesson) return `/lessons/${dbLesson.id}`;
+    return '#';
+  };
+
   // Filter catalog by subject
   const filteredCatalog = CURRICULUM_CATALOG.filter(
     (m) => filter === 'all' || m.subject === filter
   );
   const mathModules = filteredCatalog.filter((m) => m.subject === 'math');
   const readingModules = filteredCatalog.filter((m) => m.subject === 'reading');
+
+  // Catalog modules that are available (have static HTML or DB lessons) — for the "Available Now" section
+  const availableCatalogModules = filteredCatalog.filter((m) => isModuleAvailable(m.id, m.lessonUrl));
 
   return (
     <div>
@@ -78,7 +99,7 @@ export default function LessonsPage() {
           {/* ===================== */}
           {/* AVAILABLE LESSONS     */}
           {/* ===================== */}
-          {filteredLessons.length > 0 && (
+          {(filteredLessons.length > 0 || availableCatalogModules.length > 0) && (
             <div className="mb-12">
               <h2 className="font-mono text-xl font-bold mb-2 flex items-center gap-2">
                 <span
@@ -93,10 +114,11 @@ export default function LessonsPage() {
                 These lessons are ready to play — tap to start learning!
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredLessons.map((lesson) => (
-                  <Link
-                    key={lesson.id}
-                    href={`/lessons/${lesson.id}`}
+                {/* Static HTML lessons from catalog */}
+                {availableCatalogModules.map((mod) => (
+                  <a
+                    key={`catalog-${mod.id}`}
+                    href={getModuleHref(mod.id, mod.lessonUrl)}
                     className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 hover:-translate-y-1 hover:border-[var(--foreground)]/20 transition-all block group relative overflow-hidden"
                   >
                     <div
@@ -109,27 +131,25 @@ export default function LessonsPage() {
                     >
                       Play
                     </div>
-                    <span className="text-4xl mb-4 block">
-                      {lesson.subject === 'math' ? '📐' : '📖'}
-                    </span>
+                    <span className="text-4xl mb-4 block">{mod.icon}</span>
                     <h3 className="font-semibold mb-1 group-hover:text-[#FF6B6B] transition-colors">
-                      {lesson.title}
+                      {mod.title}
                     </h3>
                     <p className="text-xs text-[var(--muted)] mb-4 line-clamp-2">
-                      {lesson.description}
+                      {mod.grades} &middot; {mod.chapters.length} chapters &middot; {mod.activities} activities
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <span className="px-2.5 py-0.5 rounded-full text-xs bg-[var(--card-hover)] text-[var(--muted)]">
-                        {lesson.duration_minutes}m
+                        {mod.duration}
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full text-xs bg-[var(--card-hover)] text-[var(--muted)] capitalize">
-                        {lesson.difficulty}
+                        {mod.subject}
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full text-xs bg-[var(--card-hover)] text-[var(--muted)]">
-                        Grade {lesson.grade_level}
+                        {mod.grades}
                       </span>
                     </div>
-                  </Link>
+                  </a>
                 ))}
               </div>
             </div>
@@ -159,16 +179,19 @@ export default function LessonsPage() {
                 </h3>
                 <div className="space-y-4">
                   {mathModules.map((mod) => {
-                    const hasLessons = moduleIdsWithLessons.has(mod.id);
+                    const available = isModuleAvailable(mod.id, mod.lessonUrl);
+                    const href = available ? getModuleHref(mod.id, mod.lessonUrl) : undefined;
+                    const Wrapper = available ? 'a' : 'div';
                     return (
-                      <div
+                      <Wrapper
                         key={mod.id}
-                        className="bg-[var(--card)] border rounded-xl p-5 transition-all hover:border-[var(--foreground)]/20"
+                        {...(available ? { href } : {})}
+                        className={`bg-[var(--card)] border rounded-xl p-5 transition-all hover:border-[var(--foreground)]/20 block ${available ? 'cursor-pointer' : ''}`}
                         style={{
-                          borderColor: hasLessons
+                          borderColor: available
                             ? 'rgba(107,207,127,0.4)'
                             : 'var(--border)',
-                          background: hasLessons
+                          background: available
                             ? 'linear-gradient(135deg, rgba(107,207,127,0.05), transparent)'
                             : undefined,
                         }}
@@ -178,7 +201,7 @@ export default function LessonsPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               <h4 className="font-semibold text-sm">{mod.title}</h4>
-                              {hasLessons ? (
+                              {available ? (
                                 <span
                                   className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
                                   style={{
@@ -187,7 +210,7 @@ export default function LessonsPage() {
                                     border: '1px solid rgba(107,207,127,0.3)',
                                   }}
                                 >
-                                  Available
+                                  ▶ Play Now
                                 </span>
                               ) : (
                                 <span
@@ -221,7 +244,7 @@ export default function LessonsPage() {
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </Wrapper>
                     );
                   })}
                 </div>
@@ -239,16 +262,19 @@ export default function LessonsPage() {
                 </h3>
                 <div className="space-y-4">
                   {readingModules.map((mod) => {
-                    const hasLessons = moduleIdsWithLessons.has(mod.id);
+                    const available = isModuleAvailable(mod.id, mod.lessonUrl);
+                    const href = available ? getModuleHref(mod.id, mod.lessonUrl) : undefined;
+                    const Wrapper = available ? 'a' : 'div';
                     return (
-                      <div
+                      <Wrapper
                         key={mod.id}
-                        className="bg-[var(--card)] border rounded-xl p-5 transition-all hover:border-[var(--foreground)]/20"
+                        {...(available ? { href } : {})}
+                        className={`bg-[var(--card)] border rounded-xl p-5 transition-all hover:border-[var(--foreground)]/20 block ${available ? 'cursor-pointer' : ''}`}
                         style={{
-                          borderColor: hasLessons
+                          borderColor: available
                             ? 'rgba(107,207,127,0.4)'
                             : 'var(--border)',
-                          background: hasLessons
+                          background: available
                             ? 'linear-gradient(135deg, rgba(107,207,127,0.05), transparent)'
                             : undefined,
                         }}
@@ -258,7 +284,7 @@ export default function LessonsPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               <h4 className="font-semibold text-sm">{mod.title}</h4>
-                              {hasLessons ? (
+                              {available ? (
                                 <span
                                   className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
                                   style={{
@@ -267,7 +293,7 @@ export default function LessonsPage() {
                                     border: '1px solid rgba(107,207,127,0.3)',
                                   }}
                                 >
-                                  Available
+                                  ▶ Play Now
                                 </span>
                               ) : (
                                 <span
@@ -301,7 +327,7 @@ export default function LessonsPage() {
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </Wrapper>
                     );
                   })}
                 </div>

@@ -29,7 +29,7 @@ interface RingConfigState {
 }
 
 export default function ParentDashboard() {
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const [children, setChildren] = useState<ChildData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddChild, setShowAddChild] = useState(false);
@@ -50,95 +50,105 @@ export default function ParentDashboard() {
   const kidEmojis = ['🧒', '👦', '👧', '🧒🏽', '👦🏽', '👧🏽', '🧒🏿', '👦🏿', '👧🏿'];
 
   useEffect(() => {
+    if (authLoading) return; // Wait for auth to settle first
     if (profile?.id) {
       loadChildren();
+    } else {
+      // Auth resolved but no profile — nothing to load
+      setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id]);
+  }, [authLoading, profile?.id]);
 
   async function loadChildren() {
     if (!profile?.id) return;
 
-    const { data: kids } = await supabase
-      .from('children')
-      .select('*')
-      .eq('parent_id', profile.id)
-      .order('created_at');
+    try {
+      const { data: kids } = await supabase
+        .from('children')
+        .select('*')
+        .eq('parent_id', profile.id)
+        .order('created_at');
 
-    if (!kids) {
+      if (!kids || kids.length === 0) {
+        setChildren([]);
+        return;
+      }
+
+      const childrenWithData: ChildData[] = await Promise.all(
+        kids.map(async (child) => {
+          const today = new Date().toISOString().split('T')[0];
+
+          const [streakRes, logsRes, ringsRes, pointsRes] = await Promise.all([
+            supabase.from('streaks').select('*').eq('child_id', child.id).single(),
+            supabase.from('activity_logs').select('activity_type, minutes').eq('child_id', child.id).eq('logged_date', today),
+            supabase.from('ring_assignments').select('*').eq('child_id', child.id).order('ring_slot'),
+            supabase.from('activity_logs').select('points_earned').eq('child_id', child.id),
+          ]);
+
+          const rings: RingAssignment[] = ringsRes.data || [];
+          const logs = logsRes.data || [];
+
+          // Build progress from ring assignments (or fallback to defaults)
+          let progress: DailyProgress[];
+          if (rings.length > 0) {
+            progress = rings.map((ring) => {
+              const ringKey = `ring_${ring.ring_slot}`;
+              const totalMinutes = logs
+                .filter(
+                  (l) =>
+                    l.activity_type === ringKey ||
+                    (ring.subject && l.activity_type === ring.subject)
+                )
+                .reduce((sum, l) => sum + l.minutes, 0);
+              const goalMinutes = ring.daily_goal_minutes || 30;
+              return {
+                ring_slot: ring.ring_slot,
+                ring_label: getRingLabel(ring),
+                ring_color: ring.color,
+                ring_icon: getRingIcon(ring),
+                activity_type: ringKey,
+                total_minutes: totalMinutes,
+                goal_minutes: goalMinutes,
+                percentage: Math.min(Math.round((totalMinutes / goalMinutes) * 100), 100),
+              };
+            });
+          } else {
+            // Fallback for pre-migration children
+            const defaults = [
+              { type: 'math', label: 'Math', color: '#FF6B6B', icon: '📐' },
+              { type: 'reading', label: 'Reading', color: '#4ECDC4', icon: '📖' },
+              { type: 'chores', label: 'Chores', color: '#6BCF7F', icon: '🧹' },
+            ];
+            progress = defaults.map((d, i) => {
+              const totalMinutes = logs
+                .filter((l) => l.activity_type === d.type)
+                .reduce((sum, l) => sum + l.minutes, 0);
+              return {
+                ring_slot: i + 1,
+                ring_label: d.label,
+                ring_color: d.color,
+                ring_icon: d.icon,
+                activity_type: d.type,
+                total_minutes: totalMinutes,
+                goal_minutes: 30,
+                percentage: Math.min(Math.round((totalMinutes / 30) * 100), 100),
+              };
+            });
+          }
+
+          const totalPoints = (pointsRes.data || []).reduce((s, l) => s + l.points_earned, 0);
+          return { ...child, streak: streakRes.data, progress, totalPoints, ringAssignments: rings };
+        })
+      );
+
+      setChildren(childrenWithData);
+    } catch (err) {
+      console.error('Error loading children:', err);
+      setChildren([]);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const childrenWithData: ChildData[] = await Promise.all(
-      kids.map(async (child) => {
-        const today = new Date().toISOString().split('T')[0];
-
-        const [streakRes, logsRes, ringsRes, pointsRes] = await Promise.all([
-          supabase.from('streaks').select('*').eq('child_id', child.id).single(),
-          supabase.from('activity_logs').select('activity_type, minutes').eq('child_id', child.id).eq('logged_date', today),
-          supabase.from('ring_assignments').select('*').eq('child_id', child.id).order('ring_slot'),
-          supabase.from('activity_logs').select('points_earned').eq('child_id', child.id),
-        ]);
-
-        const rings: RingAssignment[] = ringsRes.data || [];
-        const logs = logsRes.data || [];
-
-        // Build progress from ring assignments (or fallback to defaults)
-        let progress: DailyProgress[];
-        if (rings.length > 0) {
-          progress = rings.map((ring) => {
-            const ringKey = `ring_${ring.ring_slot}`;
-            const totalMinutes = logs
-              .filter(
-                (l) =>
-                  l.activity_type === ringKey ||
-                  (ring.subject && l.activity_type === ring.subject)
-              )
-              .reduce((sum, l) => sum + l.minutes, 0);
-            const goalMinutes = ring.daily_goal_minutes || 30;
-            return {
-              ring_slot: ring.ring_slot,
-              ring_label: getRingLabel(ring),
-              ring_color: ring.color,
-              ring_icon: getRingIcon(ring),
-              activity_type: ringKey,
-              total_minutes: totalMinutes,
-              goal_minutes: goalMinutes,
-              percentage: Math.min(Math.round((totalMinutes / goalMinutes) * 100), 100),
-            };
-          });
-        } else {
-          // Fallback for pre-migration children
-          const defaults = [
-            { type: 'math', label: 'Math', color: '#FF6B6B', icon: '📐' },
-            { type: 'reading', label: 'Reading', color: '#4ECDC4', icon: '📖' },
-            { type: 'chores', label: 'Chores', color: '#6BCF7F', icon: '🧹' },
-          ];
-          progress = defaults.map((d, i) => {
-            const totalMinutes = logs
-              .filter((l) => l.activity_type === d.type)
-              .reduce((sum, l) => sum + l.minutes, 0);
-            return {
-              ring_slot: i + 1,
-              ring_label: d.label,
-              ring_color: d.color,
-              ring_icon: d.icon,
-              activity_type: d.type,
-              total_minutes: totalMinutes,
-              goal_minutes: 30,
-              percentage: Math.min(Math.round((totalMinutes / 30) * 100), 100),
-            };
-          });
-        }
-
-        const totalPoints = (pointsRes.data || []).reduce((s, l) => s + l.points_earned, 0);
-        return { ...child, streak: streakRes.data, progress, totalPoints, ringAssignments: rings };
-      })
-    );
-
-    setChildren(childrenWithData);
-    setLoading(false);
   }
 
   async function addChild(e: React.FormEvent) {
