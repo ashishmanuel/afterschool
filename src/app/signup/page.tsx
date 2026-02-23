@@ -27,39 +27,44 @@ export default function SignupPage() {
     setError('');
     setLoading(true);
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          role: 'parent',
-          avatar_emoji: selectedEmoji,
+    try {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            role: 'parent',
+            avatar_emoji: selectedEmoji,
+          },
         },
-      },
-    });
+      });
 
-    if (signUpError) {
-      setError(signUpError.message);
-      setLoading(false);
-      return;
-    }
-
-    // Generate and save family code to the profile
-    if (signUpData?.user) {
-      const familyCode = generateFamilyCode();
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ family_code: familyCode })
-        .eq('id', signUpData.user.id);
-
-      if (updateError) {
-        console.error('Failed to set family code:', updateError);
-        // Non-critical — they can still use the app, we'll retry later
+      if (signUpError) {
+        setError(signUpError.message);
+        return;
       }
-    }
 
-    router.push('/dashboard');
+      // Generate and save family code to the profile
+      if (signUpData?.user) {
+        const familyCode = generateFamilyCode();
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ family_code: familyCode })
+          .eq('id', signUpData.user.id);
+
+        if (updateError) {
+          console.error('Failed to set family code:', updateError);
+          // Non-critical — they can still use the app, we'll retry later
+        }
+      }
+
+      router.push('/dashboard');
+    } catch {
+      setError('Something went wrong. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

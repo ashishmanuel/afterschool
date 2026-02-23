@@ -40,16 +40,22 @@ export default function LessonViewer() {
   }, []);
 
   async function loadLesson() {
-    const { data } = await supabase
-      .from('lessons')
-      .select('*')
-      .eq('id', id)
-      .single();
+    try {
+      const { data } = await supabase
+        .from('lessons')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    if (data) {
-      setLesson(data);
+      if (data) {
+        setLesson(data);
+      }
+    } catch (err) {
+      console.error('Error loading lesson:', err);
+      // lesson stays null → "not found" screen will render
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   const content: LessonContent | null = lesson?.content_json ?? null;
@@ -92,34 +98,38 @@ export default function LessonViewer() {
     celebrate();
     if (timerRef.current) clearInterval(timerRef.current);
 
-    // Save progress if authenticated
+    // Save progress if authenticated — non-blocking, errors don't affect UX
     if (profile) {
-      const { data: children } = await supabase
-        .from('children')
-        .select('id')
-        .eq('parent_id', profile.id)
-        .limit(1);
+      try {
+        const { data: children } = await supabase
+          .from('children')
+          .select('id')
+          .eq('parent_id', profile.id)
+          .limit(1);
 
-      if (children?.[0]) {
-        await supabase.from('lesson_progress').upsert({
-          child_id: children[0].id,
-          lesson_id: id as string,
-          completed_at: new Date().toISOString(),
-          time_spent_seconds: elapsedSeconds,
-          score: content ? Math.round((correctCount / content.practice.problems.length) * 100) : 0,
-          problems_correct: correctCount,
-          problems_total: content?.practice.problems.length || 0,
-        }, { onConflict: 'child_id,lesson_id' });
+        if (children?.[0]) {
+          await supabase.from('lesson_progress').upsert({
+            child_id: children[0].id,
+            lesson_id: id as string,
+            completed_at: new Date().toISOString(),
+            time_spent_seconds: elapsedSeconds,
+            score: content ? Math.round((correctCount / content.practice.problems.length) * 100) : 0,
+            problems_correct: correctCount,
+            problems_total: content?.practice.problems.length || 0,
+          }, { onConflict: 'child_id,lesson_id' });
 
-        // Log activity
-        await supabase.from('activity_logs').insert({
-          child_id: children[0].id,
-          activity_type: lesson?.subject || 'math',
-          minutes: Math.max(1, Math.round(elapsedSeconds / 60)),
-          points_earned: correctCount * 10 + 5,
-          lesson_id: id as string,
-          logged_date: new Date().toISOString().split('T')[0],
-        });
+          await supabase.from('activity_logs').insert({
+            child_id: children[0].id,
+            activity_type: lesson?.subject || 'math',
+            minutes: Math.max(1, Math.round(elapsedSeconds / 60)),
+            points_earned: correctCount * 10 + 5,
+            lesson_id: id as string,
+            logged_date: new Date().toISOString().split('T')[0],
+          });
+        }
+      } catch (err) {
+        console.error('Error saving lesson progress:', err);
+        // Completion screen is already shown — user experience is not affected
       }
     }
   }

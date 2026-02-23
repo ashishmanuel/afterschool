@@ -162,35 +162,39 @@ export default function ParentDashboard() {
       return;
     }
 
-    const res = await fetch('/api/children', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: newChildName,
-        age: newChildAge,
-        grade: newChildGrade,
-        avatar_emoji: newChildEmoji,
-        kid_pin: newChildPin,
-      }),
-    });
+    try {
+      const res = await fetch('/api/children', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newChildName,
+          age: newChildAge,
+          grade: newChildGrade,
+          avatar_emoji: newChildEmoji,
+          kid_pin: newChildPin,
+        }),
+      });
 
-    const result = await res.json();
+      const result = await res.json();
 
-    if (!res.ok || !result.success) {
-      console.error('Error adding child:', result);
-      setAddError(result.error || 'Failed to add child. Please try again.');
+      if (!res.ok || !result.success) {
+        console.error('Error adding child:', result);
+        setAddError(result.error || 'Failed to add child. Please try again.');
+        return;
+      }
+
+      setNewChildName('');
+      setNewChildPin('');
+      setNewChildEmoji('🧒');
+      setNewChildAge('6');
+      setNewChildGrade('K');
+      setShowAddChild(false);
+      loadChildren();
+    } catch {
+      setAddError('Something went wrong. Please check your connection and try again.');
+    } finally {
       setSaving(false);
-      return;
     }
-
-    setNewChildName('');
-    setNewChildPin('');
-    setNewChildEmoji('🧒');
-    setNewChildAge('6');
-    setNewChildGrade('K');
-    setShowAddChild(false);
-    setSaving(false);
-    loadChildren();
   }
 
   // ============================================
@@ -269,9 +273,9 @@ export default function ParentDashboard() {
       }
     } catch (err) {
       console.error('Error saving ring config:', err);
+    } finally {
+      setConfigSaving(false);
     }
-
-    setConfigSaving(false);
   }
 
   // ============================================

@@ -49,6 +49,7 @@ export default function PlacementQuizPage() {
   async function fetchQuiz() {
     try {
       const res = await fetch(`/api/quiz?moduleId=${moduleId}`);
+      if (!res.ok) throw new Error(`Quiz fetch failed: ${res.status}`);
       const data = await res.json();
 
       setModuleTitle(data.moduleTitle || 'Quiz');
@@ -62,8 +63,9 @@ export default function PlacementQuizPage() {
     } catch (err) {
       console.error('Error fetching quiz:', err);
       setComingSoon(true);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   function selectAnswer(answer: string) {

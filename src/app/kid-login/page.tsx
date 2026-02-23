@@ -81,15 +81,13 @@ export default function KidLoginPage() {
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
         setError('Login service unavailable. Please try again.');
-        setLoading(false);
         return;
       }
 
       const data = await res.json();
 
       if (!data.success) {
-        setError(data.error || 'Hmm, that didn\'t work. Try again!');
-        setLoading(false);
+        setError(data.error || "Hmm, that didn't work. Try again!");
         return;
       }
 
@@ -112,8 +110,10 @@ export default function KidLoginPage() {
       setTimeout(() => {
         window.location.href = '/dashboard/kid';
       }, 1500);
+      return; // navigation will unload — no need to setLoading(false)
     } catch {
       setError('Oops! Something went wrong. Try again!');
+    } finally {
       setLoading(false);
     }
   }

@@ -27,16 +27,22 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (error) {
-      setError(error.message);
+      if (error) {
+        setError(error.message);
+      } else {
+        // Full page load so middleware picks up the fresh session cookies.
+        // This avoids the race condition where router.push() navigates
+        // before AuthContext has processed the new session.
+        window.location.href = '/dashboard';
+        return; // navigation will unload — no need to setLoading(false)
+      }
+    } catch {
+      setError('Something went wrong. Please check your connection and try again.');
+    } finally {
       setLoading(false);
-    } else {
-      // Full page load so middleware picks up the fresh session cookies.
-      // This avoids the race condition where router.push() navigates
-      // before AuthContext has processed the new session.
-      window.location.href = '/dashboard';
     }
   }
 

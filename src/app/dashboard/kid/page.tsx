@@ -38,6 +38,7 @@ export default function KidDashboard() {
   // Separated from loadDashboard so it can be called by timer/manual log
   // without the stale-closure problem.
   const refreshData = useCallback(async (resolvedChildId: string) => {
+    try {
     const today = new Date().toISOString().split('T')[0];
 
     const [streakRes, logsRes, ringsRes, pointsRes] = await Promise.all([
@@ -169,59 +170,73 @@ export default function KidDashboard() {
         setLessonMap(map);
       }
     }
+    } catch (err) {
+      console.error('Error refreshing dashboard data:', err);
+      // Keep existing state — don't wipe data on a refresh failure
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── loadDashboard: resolve childId (once), then call refreshData ──────────
   async function loadDashboard() {
-    let resolvedChildId: string | null = null;
-    let resolvedName = '';
-    let resolvedEmoji = '🧒';
+    // Hard safety timeout — loading MUST clear within 8 seconds no matter what
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+      setDashboardLoaded(true);
+    }, 8000);
 
-    const kidSessionStr = localStorage.getItem('kid_session');
-    if (kidSessionStr) {
-      try {
-        const kidSession: KidSession = JSON.parse(kidSessionStr);
-        resolvedChildId = kidSession.child_id;
-        resolvedName = kidSession.child_name;
-        resolvedEmoji = kidSession.avatar_emoji;
-      } catch {
-        localStorage.removeItem('kid_session');
+    try {
+      let resolvedChildId: string | null = null;
+      let resolvedName = '';
+      let resolvedEmoji = '🧒';
+
+      const kidSessionStr = localStorage.getItem('kid_session');
+      if (kidSessionStr) {
+        try {
+          const kidSession: KidSession = JSON.parse(kidSessionStr);
+          resolvedChildId = kidSession.child_id;
+          resolvedName = kidSession.child_name;
+          resolvedEmoji = kidSession.avatar_emoji;
+        } catch {
+          localStorage.removeItem('kid_session');
+        }
       }
-    }
 
-    if (!resolvedChildId && profile?.id) {
-      const { data: children } = await supabase
-        .from('children')
-        .select('*')
-        .eq('parent_id', profile.id)
-        .limit(1);
+      if (!resolvedChildId && profile?.id) {
+        const { data: children } = await supabase
+          .from('children')
+          .select('*')
+          .eq('parent_id', profile.id)
+          .limit(1);
 
-      const child = children?.[0];
-      if (child) {
-        resolvedChildId = child.id;
-        resolvedName = child.name;
-        resolvedEmoji = child.avatar_emoji;
+        const child = children?.[0];
+        if (child) {
+          resolvedChildId = child.id;
+          resolvedName = child.name;
+          resolvedEmoji = child.avatar_emoji;
+        }
       }
-    }
 
-    if (!resolvedChildId) {
-      if (!profile) {
-        window.location.href = '/kid-login';
+      if (!resolvedChildId) {
+        if (!profile) {
+          window.location.href = '/kid-login';
+          return;
+        }
         return;
       }
+
+      setChildId(resolvedChildId);
+      setChildName(resolvedName);
+      setChildEmoji(resolvedEmoji);
+
+      await refreshData(resolvedChildId);
+    } catch (err) {
+      console.error('Error loading kid dashboard:', err);
+    } finally {
+      clearTimeout(safetyTimer);
+      setDashboardLoaded(true);
       setLoading(false);
-      return;
     }
-
-    setChildId(resolvedChildId);
-    setChildName(resolvedName);
-    setChildEmoji(resolvedEmoji);
-
-    await refreshData(resolvedChildId);
-
-    setDashboardLoaded(true);
-    setLoading(false);
   }
 
   useEffect(() => {
