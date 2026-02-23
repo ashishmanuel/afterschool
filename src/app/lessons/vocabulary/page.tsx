@@ -80,6 +80,13 @@ export default function VocabularyLesson() {
   const router = useRouter();
   const supabase = createClient();
 
+  // Parent preview mode: parent logged in (Supabase auth) but no kid session.
+  // Skip all DB writes — no progress saved, no activity logged.
+  const isParentPreview =
+    typeof window !== 'undefined'
+      ? !localStorage.getItem('kid_session')
+      : true; // SSR: default to safe (no writes)
+
   // Game state
   const [phase, setPhase] = useState<GamePhase>('level-select');
   const [level, setLevel] = useState<Level>('easy');
@@ -339,22 +346,15 @@ export default function VocabularyLesson() {
   // ─── Save progress to Supabase ──────────────────────────────────────────────
 
   const saveProgress = useCallback(async () => {
+    // Parent preview — never write data, never call supabase.auth.getUser()
+    // (that call can trigger an auth refresh which breaks the layout)
+    if (isParentPreview) return;
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      let childId: string | null = null;
-
-      if (user) {
-        const { data: children } = await supabase
-          .from('children')
-          .select('id')
-          .eq('parent_id', user.id)
-          .limit(1);
-        childId = children?.[0]?.id || null;
-      } else {
-        const kidSession = localStorage.getItem('kid_session');
-        if (kidSession) childId = JSON.parse(kidSession).child_id;
-      }
-
+      // Kid session only — get childId from localStorage
+      const kidSession = localStorage.getItem('kid_session');
+      if (!kidSession) return;
+      const childId = JSON.parse(kidSession).child_id;
       if (!childId) return;
 
       const elapsedMinutes = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 60000));
@@ -368,7 +368,7 @@ export default function VocabularyLesson() {
     } catch {
       // Silently fail — don't break UX
     }
-  }, [supabase, score]);
+  }, [isParentPreview, supabase, score]);
 
   // ─── Score badge ────────────────────────────────────────────────────────────
 
@@ -434,6 +434,12 @@ export default function VocabularyLesson() {
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
           .fredoka { font-family: 'Fredoka One', cursive; }`}
         </style>
+
+        {isParentPreview && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#FFD93D]/90 text-[#0f0f0f] text-xs font-bold px-4 py-2 rounded-full shadow-lg">
+            👀 Parent Preview — progress won&apos;t be saved
+          </div>
+        )}
 
         <div className="text-center mb-10">
           <div className="text-6xl mb-4">📖</div>

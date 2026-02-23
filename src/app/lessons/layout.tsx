@@ -1,19 +1,12 @@
 'use client';
 
 import Sidebar from '@/components/ui/Sidebar';
-import { useAuth } from '@/contexts/AuthContext';
 
+// Note: No auth loading gate here — individual pages handle their own auth
+// checks. Blocking the layout on auth loading caused the sidebar to get stuck
+// showing a spinner whenever an auth refresh happened mid-session (e.g. when
+// the vocabulary lesson called supabase.auth.getUser() on completion).
 export default function LessonsLayout({ children }: { children: React.ReactNode }) {
-  const { loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-5xl flame-pulse">📚</div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex min-h-screen">
       <Sidebar />
