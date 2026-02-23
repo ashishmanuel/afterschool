@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase';
 import ActivityRing from '@/components/ui/ActivityRing';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { Child, Streak, DailyProgress, RingAssignment } from '@/types/database';
 import { getRingLabel, getRingIcon } from '@/types/database';
 import { CURRICULUM_CATALOG, getModulesForGrade, matchesGrade } from '@/data/curriculum';
@@ -30,6 +31,7 @@ interface RingConfigState {
 
 export default function ParentDashboard() {
   const { profile, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [children, setChildren] = useState<ChildData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddChild, setShowAddChild] = useState(false);
@@ -361,7 +363,11 @@ export default function ParentDashboard() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {children.map((child) => (
-              <div key={child.id} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-7 hover:-translate-y-1 hover:border-[var(--foreground)]/20 transition-all">
+              <div
+                key={child.id}
+                onClick={() => router.push(`/dashboard/child/${child.id}`)}
+                className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-7 hover:-translate-y-1 hover:border-[var(--foreground)]/20 transition-all cursor-pointer group"
+              >
                 <div className="flex gap-6 items-center">
                   {/* Dynamic ring display */}
                   <ActivityRing size={120} strokeWidth={10} rings={
@@ -375,12 +381,17 @@ export default function ParentDashboard() {
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <h3 className="text-xl font-bold flex items-center gap-2">{child.avatar_emoji} {child.name}</h3>
+                        <h3 className="text-xl font-bold flex items-center gap-2 group-hover:text-[#FF6B6B] transition-colors">
+                          {child.avatar_emoji} {child.name}
+                        </h3>
                         <p className="text-sm text-[var(--muted)]">Grade {child.grade} &middot; Age {child.age}</p>
+                        <p className="text-xs text-[var(--muted)] mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          View full history →
+                        </p>
                       </div>
-                      {/* Configure Rings button (gear icon) */}
+                      {/* Configure Rings button — stops card click from firing */}
                       <button
-                        onClick={() => openRingConfig(child)}
+                        onClick={(e) => { e.stopPropagation(); openRingConfig(child); }}
                         className="p-2 rounded-lg hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]"
                         title="Configure Rings"
                       >
